@@ -1,0 +1,22 @@
+package account;
+
+import java.util.*;
+import dataBase.*;
+import questions.*;
+import web.*;
+import quizzes.*;
+
+//jslakdjslakj
+public class Challenge {
+
+	public int score;
+	public String from;
+	public String quizName;
+	
+	public Challenge(int score, String from, String quiz) {
+		this.score = score;
+		this.from = from;
+		this.quizName = quiz;
+	}
+	
+}

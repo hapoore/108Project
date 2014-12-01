@@ -1,0 +1,20 @@
+package account;
+
+import quizzes.*;
+
+public class RecentFriendActivity {
+
+	public static int QUIZ_TAKEN = 0;
+	public static int QUIZ_CREATED = 420;
+	public static int ACHIEVEMENT_EARNERD = 69;
+	
+	public String userName;
+	public String quizName;
+	public int activity;
+	
+	public RecentFriendActivity(String userName, String quizName, int activity) {
+		this.userName = userName;
+		this.quizName = quizName;
+		this.activity = activity;
+	}
+}

@@ -1,0 +1,428 @@
+package quizzes;
+import java.util.*;
+
+import questions.*;
+
+public class Quiz {
+	private String description;
+	private String name;
+	private String creator;
+	private List<QuizResult> topResults;
+	private List<QuizResult> recentResults;
+	private List<Question> questions;
+	private int numQuestions;	//db doesn't need to give this
+	private boolean randomized;				//whether the creator wants to questions to be randomized
+	private boolean multiplePages;
+	private boolean immediateCorrection;	//tells whether the creator wants immediate correction on or off
+	//private boolean practiceMode;
+	private String tag;
+	private String type;
+	private boolean canPractice;
+	private QuizStatistics statistics;		//made a class that stores statistics information
+	public boolean inProgress;
+	private QuizSession currSession;
+	private int maxScore;
+	private Date created;
+	private int numPlays;
+	private int ratingtotal;
+	private int timesRated;
+	private final long minute = 60000;
+	private final long hour = 60 * minute;
+	private final long recentThreshhold = 5 * minute;
+	
+	public Quiz(){
+		statistics = new QuizStatistics(null);
+		questions = new ArrayList<Question>();
+		inProgress = false;
+		topResults = new ArrayList<QuizResult>();
+		recentResults = new ArrayList<QuizResult>();
+		numQuestions = 0;
+	}
+	
+	public String toString(){
+		return creator + " created this quiz on " + created;
+	}
+	
+	public boolean checkEditAccess(String user){
+		return user.equals(creator);
+	}
+	
+	//if checkEditAccess returned true
+	public void addQuestion(int position, Question question){
+		questions.add(position, question);
+		numQuestions++;
+		maxScore += question.getWorth();
+	}
+	
+	public void addQuestion(Question question){
+		questions.add(question);
+		numQuestions++;
+		maxScore += question.getWorth();
+	}
+	
+	public List<Question> getQuestions(){
+		return questions;
+	}
+	
+	public Date getCreated(){
+		return created;
+	}
+	
+	public int getMaxScore(){
+		return maxScore;
+	}
+	
+	public void removeQuestion(int position){
+		maxScore -= questions.get(position).getWorth();
+		questions.remove(position);
+		numQuestions--;
+	}
+	
+	public void setPracticeMode(boolean practice){
+		canPractice = practice;
+	}
+	
+	public boolean getPracticeMode(){
+		return canPractice;
+	}
+	
+	public void setRating(int rating){
+		this.ratingtotal = rating;
+	}
+	
+	public int getRating(){
+		if(timesRated == 0)
+			return 0;
+		return ratingtotal / timesRated;
+	}
+	
+	public void setTimesRated(int times){
+		this.timesRated = times;
+	}
+	
+	public void setCreator(String user){
+		creator = user;
+	}
+	
+	public String getCreator(){
+		return creator;
+	}
+	
+	public void setNumPlays(int plays){
+		numPlays = plays;
+	}
+	
+	public int getNumPlays(){
+		return numPlays;
+	} 
+	
+	public void setMultiplePages(boolean multiplePages){
+		this.multiplePages = multiplePages;
+	}
+	
+	public void setCreated(Date date){
+		created = date;
+	}
+	
+	public boolean getMultiplePages(){
+		return multiplePages;
+	}
+	
+	public void removeQuestion(Question question){
+		questions.remove(question);
+		numQuestions--;
+	}
+	
+	public void setName(String name){
+		this.name = name;
+	}
+	
+	public String getName(){
+		return name;
+	}
+	
+	public void setType(String type){
+		this.type = type;
+	}
+	
+	public String getType(){
+		return type;
+	}
+	
+	public void setRandomized(boolean randomized){
+		this.randomized = randomized;
+	}
+	
+	public boolean getRandomized(){
+		return randomized;
+	}
+	
+	public void setImmediateCorrection(boolean immediate){
+		immediateCorrection = immediate;
+	}
+	
+	public boolean getImmediateCorrection(){
+		return immediateCorrection;
+	}    
+	
+	public void setDescription(String description){
+		this.description = description;
+	}
+	
+	public String getDescription(){
+		return description;
+	}
+	
+	public boolean checkIfTopResult(QuizResult newResult){
+		for(int i = 0; i < topResults.size(); i++){
+			QuizResult curr = topResults.get(i);
+			if(curr.compareTo(newResult) > 0){
+				topResults.add(i, newResult);
+				if(topResults.size() == 10)
+					topResults.remove(9);
+				return true;
+			}
+		}
+		if(topResults.size() < 10){
+			topResults.add(newResult);
+			return true;
+		}
+		return false;
+	}
+	
+	public void clearTopResults(){
+		topResults.clear();
+	}
+	
+	public List<QuizResult> getTopResults(){
+		return topResults;
+	}
+	
+	public List<QuizResult> getRecentResults(){
+		updateRecentResults();
+		return recentResults;
+	}
+	
+	public void setStats(QuizStatistics stats){
+		statistics = stats;
+		recentResults = findRecentResults();
+		topResults = findTopResults();
+	}
+	
+	public List<QuizResult> findRecentResults(){
+		List<QuizResult> recents = new ArrayList<QuizResult>();
+		List<QuizResult> allResults = statistics.getScores();
+		for(int i = 0; i < allResults.size(); i++){
+			QuizResult curr = recentResults.get(i);
+			long currTime = curr.getDate().getTime();
+			if(System.currentTimeMillis() - currTime <= recentThreshhold)
+				recents.add(curr);
+		}
+		return recents;
+	}
+	
+	public List<QuizResult> findTopResults(){
+		List<QuizResult> top = new ArrayList<QuizResult>();
+		List<QuizResult> allResults = statistics.getScores();
+		for(int i = 0; i < allResults.size(); i++){
+			QuizResult currAll = allResults.get(i);
+			for(int j = 0; j < top.size(); j++){
+				QuizResult currTop = top.get(i);
+				if(currTop.compareTo(currAll) > 0){
+					top.add(i, currAll);
+					if(top.size() == 10)
+						top.remove(9);
+				}
+			}
+			if(top.size() < 10)
+				top.add(currAll);
+		}
+		return top;
+	}
+	
+	public void addRecentResult(QuizResult newResult){
+		recentResults.add(0, newResult);
+	}
+	
+	public void clearRecentResults(){
+		recentResults.clear();
+	}
+	
+	public void updateRecentResults(){
+		for(int i = 0; i < recentResults.size(); i++){
+			QuizResult curr = recentResults.get(i);
+			long currTime = curr.getDate().getTime();
+			if(System.currentTimeMillis() - currTime > recentThreshhold){
+				recentResults.remove(curr);
+				i--;
+			}
+		}
+	}
+	
+	public void clearStatistics(){
+		statistics.clear();
+	}
+	
+	public QuizStatistics getStatistics(){
+		return statistics;
+	}
+	
+	public void setTag(String tag){
+		this.tag = tag;
+	}
+	
+	public String getTag(){
+		return tag;
+	}
+	
+	public void startSession(boolean practiceMode, String user){
+		currSession = new QuizSession(practiceMode, user);
+		inProgress = true;
+	}
+	
+	public void endSession(){
+		currSession = null;
+		inProgress = false;
+	}
+	
+	public QuizSession getSession(){
+		return currSession;
+	}
+	
+	public class QuizSession{
+		public int score;
+		int questionsComplete;
+		public List<Question> remainingQuestions;
+		String user;
+		public boolean practiceMode;
+		Random randomizer;
+		public Question currQuestion;
+		public QuizResult result;
+		public PracticeResult practiceRes;
+		public long startTime;
+		public long endTime;
+		Map<Question, Integer> timesCorrect;
+		int questionsAsked;
+		public Map<Question, List<String>> answers;
+		public QuizSession(boolean practiceMode, String user){
+			startTime = System.currentTimeMillis();
+			this.user = user;
+			this.practiceMode = practiceMode;
+			if(practiceMode)
+				timesCorrect = new HashMap<Question, Integer>();
+			score = 0;
+			questionsComplete = 0;
+			if(randomized){
+				randomizer = new Random();
+			}
+			remainingQuestions = new ArrayList<Question>();
+			for(int i = 0; i < questions.size(); i++){
+				remainingQuestions.add(questions.get(i));
+				if(practiceMode)
+					timesCorrect.put(questions.get(i), new Integer(0));
+			}
+			answers = new HashMap<Question, List<String>>();
+		}
+		
+		
+		
+		
+		
+		public double getQuestionScore(Object answersGiven){
+			int questionType = currQuestion.type();
+			ArrayList<String> answer = null;
+			HashMap<String, String> answer2 = null;
+			if(questionType != 4){
+				answer = (ArrayList<String>)answersGiven;
+				if(questionType == 5 || questionType == 6){
+					if(answer.get(0) == "" || answer.get(0) == null)
+						answer.set(0, "0");
+				}
+				answers.put(currQuestion, answer);
+			}
+			else{
+				answer2 = (HashMap<String, String>)answersGiven;
+				Iterator<String> keysIter = answer2.keySet().iterator();
+				ArrayList<String> asString = new ArrayList<String>();
+				while (keysIter.hasNext()){
+					String key = keysIter.next();
+					asString.add(key + "; " + answer2.get(key));
+				}
+				answers.put(currQuestion, asString);
+			}
+			double points = 0;
+			if(questionType == 0)
+				points = ((ResponseQuestion)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 1)
+				points = ((FillBlankQuestion)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 2)
+				points = ((MultipleChoice)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 3)
+				points = ((PictureResponseQuestion)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 4)
+				points = ((MatchingQuestion)currQuestion).getPoints(answer2);
+			else if(questionType == 5)
+				points = ((EstimateQuestion)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 6)
+				points = ((RandomMathQuestion)currQuestion).getPoints(answer.get(0));
+			else if(questionType == 7)
+				points = ((MultiAnswerQuestion)currQuestion).getPoints(answer);
+			else if(questionType == 8)
+				points = ((MultiChoiceMultiAnswer)currQuestion).getPoints(answer);
+			if(practiceMode){
+				questionsAsked++;
+				if(points == currQuestion.getWorth()){
+					int times = timesCorrect.get(currQuestion);
+					if(times == 2)
+						remainingQuestions.remove(currQuestion);
+					else{
+						timesCorrect.put(currQuestion, times + 1);
+						remainingQuestions.add(currQuestion);
+						remainingQuestions.remove(0);
+					}
+				}
+				else if(randomizer == null){
+					remainingQuestions.add(currQuestion);
+					remainingQuestions.remove(0);
+				}
+					
+			}
+			return points;
+		}
+		
+		public void setResults(){
+			if(practiceMode){
+				practiceRes = new PracticeResult(name, user, ((double)questionsAsked) / questions.size() ,new Date(), System.currentTimeMillis() - startTime);
+				return;
+			}
+			numPlays++;
+			result = new QuizResult(name, user, score, 100 * ((double)score) / maxScore, new Date(), System.currentTimeMillis() - startTime);
+			if(checkIfTopResult(result))
+				result.setHighScore(true);
+			updateRecentResults();
+			addRecentResult(result);
+			statistics.addResult(result);
+		}
+		
+		public boolean getNextQuestion(){
+			Question question = null;
+			if(remainingQuestions.size() == 0){
+				currQuestion = null;
+				return false;
+			}
+			if(randomized)
+				question = remainingQuestions.get(randomizer.nextInt(remainingQuestions.size()));
+			else
+				question = remainingQuestions.get(0);
+			if(!practiceMode)
+				remainingQuestions.remove(question);
+			currQuestion = question;
+			return true;
+		}
+		
+		//private QuizResult practiceQuiz(){
+		//	QuizResult result = new QuizResult(user, score, numQuestions);
+		//	return result;
+		//}
+	}
+}

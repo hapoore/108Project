@@ -1,0 +1,474 @@
+package account;
+
+import java.util.*;
+import dataBase.*;
+import questions.*;
+import web.*;
+import quizzes.*;
+
+public class Account {
+	
+	public static DataBase db = new DataBase();
+	private static Set<Account> accounts = new HashSet<Account>();
+	private String userName;
+	private String password;
+	private String salt;
+	//private String inputPassword;
+	private String profilePic;
+	private String securityQuestion;
+	private String securityAnswer;
+	private Set<String> friends;
+	private double rating;
+	private int numRatings;
+	private Set<Achievement> achievements;
+	private int quizzesTaken;
+	private LinkedList<QuizResult> pastPerformances;
+	private boolean isAdmin;
+	private LinkedList<Quiz> quizzesCreated;
+	private Set<String> friendRequests;
+	private String password_hint;
+	private Inbox inbox;
+	private String status;
+	private LinkedList<RecentFriendActivity> recentActivities;
+	private LinkedList<Challenge> challenges;
+	
+	public Account(String userName, String password, String salt) {
+		this.userName = userName;
+		this.password = password;
+		this.salt = salt;
+		this.profilePic = null;
+		this.securityQuestion = null;
+		this.securityAnswer = null;
+		this.friends = null;
+		this.rating = 0;
+		this.numRatings = 0;
+		this.achievements = null;
+		this.quizzesTaken = 0;
+		this.pastPerformances = null;
+		this.isAdmin = false;
+		this.quizzesCreated = null;
+		this.friendRequests = null;
+		this.password_hint = null;
+		this.inbox = null;
+		this.status = null;
+		this.recentActivities = null;
+		this.challenges = null;
+		//System.out.println("" + userName + " with " + password " and " + salt + " created in Account!");
+		//
+		//this.inputPassword = password + salt;
+	}
+	
+	public static DataBase getDB() {
+		return db;
+	}
+	
+	public static Account getOnlineAccount(String user_name) {
+		Account cur = null;
+		Iterator<Account> it = accounts.iterator();
+		while(it.hasNext()) {
+			cur = (Account)it.next();
+			String name = cur.getUserName();
+			if (name.equals(user_name)) break;
+		}
+		return cur;
+	}
+	
+	public static int numOfAccountsOnline() {
+		return accounts.size();
+	}
+	
+	public static boolean accountOnline(Account acc) {
+		if (!accounts.contains(acc)) return false;
+		return true;
+	}
+	
+	public static void deleteOnlineAccount(Account acc) {
+		if (Account.accounts == null) {
+			System.out.println("ALKJDLAJLDJAJD");
+			Account.accounts = new HashSet<Account>();
+		}
+		Account.accounts.remove(acc);
+	}
+	
+	public static void addOnlineAccount(Account acc) {
+		if (accounts == null) {
+			System.out.println("ASJDLJAJDJALKJDL");
+			accounts = new HashSet<Account>();
+		}
+		accounts.add(acc);
+	}
+	
+	/*
+	 * Sends challenges
+	 */
+	public void sendChallenge(String to, String quizName) {
+		int score = 0;
+		for (QuizResult cur: this.pastPerformances) {
+			if (quizName.equals(cur.getQuizName())) {
+				score = cur.getScore();
+			}
+		}
+		Challenge chal = new Challenge(score, this.userName, quizName);
+		Account other_person = Account.getOnlineAccount(to);
+		if (other_person == null) { //not online
+			//db.addChallenge(to, this.userName, chal);
+		} else { //online
+			other_person.flagChallenge(chal);
+		}
+	}
+	
+	private void flagChallenge(Challenge chal) {
+		this.challenges.add(0, chal);
+	}
+	
+	public void acceptChallenge(String from, String quizName) {
+		int size = this.challenges.size();
+		for (int i = 0; i < size; i++) {
+			Challenge cur = this.challenges.get(i);
+			String cur_from = cur.from;
+			String cur_quiz = cur.quizName;
+			if (cur_from.equals(from) && cur_quiz.equals(quizName)) {
+				this.challenges.remove(i);
+				break;
+			}
+		}
+	}
+	
+	/*
+	 * This deals with pinging the other accounts when something important happens
+	 * int which: 0 == quizTaken; 1 == quizCreated; anything_else == achievementEarned
+	 */
+	//TODO
+	private void sendRecentActivityInfo(int which, Object info) {
+		boolean update = false;
+		String message = this.userName;
+		if (which == 0) message += " took the following quiz: " + ((QuizResult)info).getQuizName();
+		else if (which == 1) message += " created the following quiz: " + ((Quiz)info).getName();
+		else message += " earned the following achievement: " + ((Achievement)info).getName();
+		
+		for (String curUser: this.friends) {
+			Account cur = Account.getOnlineAccount(curUser);
+			if (cur == null) {
+				cur = db.getAccount(curUser);
+				update = true;
+			}
+			//cur.addRecentFriendActivity(message);
+			if (update == true) db.updateAccount(cur);
+		}
+	}
+	
+	/*private void addRecentFriendActivity() {
+		this.recentActivities.add(0, message);
+	}*/
+	
+	
+	/*
+	 * Friend request info
+	 */
+	public void sendFriendRequest(String personRecievingRequest) {
+		Account other_person = Account.getOnlineAccount(personRecievingRequest);
+		if (other_person == null) { //not online
+			db.addFriendRequest(personRecievingRequest, this.userName);
+			
+		} else { //get account from Set since it is online
+			other_person.flagRequest(this.userName);
+		}
+	}
+	
+	//DO NOT USE! This is for communication between accounts, which is taken care of internally
+	public void flagRequest(String userName) {
+		this.friendRequests.add(userName);
+	}
+	
+	public void acceptFriendRequest(boolean decision, String otherAccount) {
+		Account other_person = Account.getOnlineAccount(otherAccount);
+		this.friendRequests.remove(otherAccount);
+		if (decision == true) {	//accepts friend request
+			
+			this.friends.add(otherAccount);
+			if (other_person == null) { //accepts but is not online
+				db.addFriend(otherAccount, this.userName);
+			} else {
+				other_person.addFriend(this.userName);
+			}
+			
+			
+			
+		} //else is denied!
+	}
+	
+	/*
+	 * These functions deal with the Inbox
+	 */
+	public void sendMessage(String to, String message) {
+		inbox.sendMessage(to, message);
+	}
+	
+	//TODO
+	public boolean newMessage() {
+		return true;
+	}
+	
+	public Conversation getConversation(String userName) {
+		return this.inbox.getConversation(userName);
+	}
+	
+	public LinkedList<Conversation> getNewMessages() {
+		return this.inbox.getNewMessages();
+	}
+	
+	/*public String getConversation(String friend) {
+		return inbox.getConversation(friend);
+	}
+	
+	public boolean isNewNotification(String friend) {
+		return inbox.newNotification(friend);
+	}
+	
+	public LinkedList<String> inboxOrder() {
+		return inbox.getInboxOrder();
+	}
+	
+	
+	/*
+	 * These are the add functions
+	 */
+	
+	//TODO
+	public void removeFriend(String user, String friend) {
+		
+	}
+	
+	
+	public boolean friendRequestSent(String otherAccount) {
+		Account other_person = Account.getOnlineAccount(otherAccount);
+		if (other_person == null) { //if account is online
+			//DataBase db = new DataBase();
+			other_person = db.getAccount(otherAccount);
+			//db.close();
+		}
+		return other_person.containsFriendRequest(this.getUserName());
+	}
+	
+	public boolean containsFriendRequest(String otherAccount) {
+		return friendRequests.contains(otherAccount);
+	}
+	
+	public boolean isFriend(String userName) {
+		return friends.contains(userName);
+	}
+	
+	
+	public void addQuizCreated(Quiz quiz) {
+		quizzesCreated.add(0, quiz);
+	}
+	
+	public void addFriend(String friend) {
+		friends.add(friend);
+	}
+	
+	public void addQuizPerformance(QuizResult qr) {
+		pastPerformances.add(0, qr);
+		++quizzesTaken;
+	}
+	
+	public void addReview(int rating) {
+		double sum = rating + this.rating;
+		++numRatings; 
+		this.rating = sum/numRatings;
+	}
+	
+	public void addAchievement(String achievement) {
+		achievements.add(new Achievement(achievement));
+	}
+	
+	/*public void changePassword(String newPassword, String newSalt) {
+		password = newPassword;
+		salt = newSalt;
+		inputPassword = newPassword + newSalt;
+	}*/
+	
+	/*
+	 * These are all getters for the account class (plus isAdmin
+	 * is in this section)
+	 */
+	
+	public LinkedList<Challenge> getChallenges() {
+		return challenges;
+	}
+	
+	public String getStatus() {
+		return status;
+	}
+	
+	public String getPasswordHint() {
+		return password_hint;
+	}
+	
+	public Set<String> getFriendRequests() {
+		return friendRequests;
+	}
+	
+	public int getUserScore() {
+		int score = 0;
+		for (Achievement cur: this.achievements) {
+			score += cur.getPoints();
+		}
+		return score;
+	}
+	
+	public LinkedList<Quiz> getQuizzesCreated() {
+		return quizzesCreated;
+	}
+	
+	//need order, which is why it is a linked list
+	//newest ones are first
+	public LinkedList<QuizResult> getPastPerformances() {
+		return pastPerformances;
+	}
+	
+	public int getQuizzesTaken() {
+		return quizzesTaken;
+	}
+	
+	public boolean isAdmin() {
+		return isAdmin;
+	}
+	
+	public Set<Achievement> getAchievementList() {
+		return achievements;
+	}
+	
+	public double getRating() {
+		if (numRatings == 0) return 0; //no rating yet
+		return rating;
+	}
+	
+	public String getSalt() {
+		return salt;
+	}
+	
+	/*public String getSaltedPassword() {
+		return inputPassword;
+	}*/
+	
+	public String getPassword() {
+		return password;
+	}
+	
+	public String getUserName() {
+		return userName;
+	}
+	
+	public Set<String> getFriendList() {
+		return friends;
+	}
+	
+	public String getSecurityAnswer() {
+		return securityAnswer;
+	}
+	
+	public String getSecurityQuestion() {
+		return securityQuestion;
+	}
+	
+	public String getProfilePic() {
+		return profilePic;
+	}
+	
+	public int getNumRatings() {
+		return numRatings;
+	}
+	
+	//tell Austin that first is what happened most recently
+	public LinkedList<RecentFriendActivity> getRecentFriendActivities() {
+		return this.recentActivities;
+	}
+	
+	//not necessary to use for anyone. Is used for exchanging of info for accounts
+	//when sending messages internally. Use the methods I set in this class to send 
+	//messages
+	public Inbox getInbox() {
+		return inbox;
+	}
+	
+	//PARKER! USE THIS TO STORE! has encrypted info I need. DO NOT USE for any other purpose
+	//except storage
+	public Map<String, String> storeInbox() {
+		if (inbox == null) return null;
+		return this.inbox.storeInbox();
+	}
+	
+	/*
+	 * The following are all setters for the Account class!
+	 */
+	
+	//tell parker about more info!
+	
+	public void setPassword(String password) {
+		this.password = password;
+	}
+	
+	public void setRecentFriendActivities(LinkedList<RecentFriendActivity> act) {
+		this.recentActivities = act;
+	}
+	
+	public void setStatus(String status) {
+		this.status = status;
+	}
+	
+	public void setPasswordHint(String passwordHint) {
+		this.password_hint = passwordHint;
+	}
+	
+	public void setFriendRequests(Set<String> friendRequests) {
+		this.friendRequests = friendRequests;
+	}
+	
+	public void setQuizzesCreated(LinkedList<Quiz> quizzesCreated) {
+		this.quizzesCreated = quizzesCreated;
+	}
+	
+	public void setAdministratorStatus (boolean isAdmin) {
+		this.isAdmin = isAdmin;
+	}
+	
+	public void setPastPerformances (LinkedList<QuizResult> pastPerformances) {
+		this.pastPerformances = pastPerformances;
+		this.quizzesTaken = this.pastPerformances.size();
+	}
+	
+	public void setAchievementList(Set<Achievement> achievements) {
+		this.achievements = achievements;
+	}
+	
+	public void setRating(int numRatings, double curRating) {
+		this.numRatings = numRatings;
+		this.rating = curRating;
+	}
+	
+	public void setFriendList(Set<String> friends) {
+		this.friends = friends;
+	}
+	
+	public void setChallenges(LinkedList<Challenge> challenges) {
+		this.challenges = challenges;
+	}
+	
+	public void setSecurityAnswer(String answer) {
+		securityAnswer = answer;
+	}
+	
+	public void setProfilePic(String url) {
+		profilePic = url;
+	}
+	
+	public void setSecurityQuestion(String question) {
+		securityQuestion = question;
+	}
+	
+	public void setInbox(Map<String, String> inbox) {
+		this.inbox = new Inbox(inbox, this, db);
+	}
+	
+}
